@@ -1,3 +1,17 @@
+# Ignora arquivos de dados, mas mantém as pastas via .gitkeep
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Ignora artefatos de saída (modelos pesados, logs, predições)
+outputs/logs/*
+!outputs/logs/.gitkeep
+outputs/models/*
+!outputs/models/.gitkeep
+outputs/predictions/*
+!outputs/predictions/.gitkeep
+
+# Arquivos compilados do Python
 __pycache__/
 *.pyc
-*.csv
