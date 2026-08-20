@@ -58,7 +58,7 @@ class UniversalModelTuner:
     '''
         Exportar resultados (Implementado pelo Gemini)
     '''
-    def _export_results(self):
+    def _export_models(self):
         # Define os caminhos
         models_dir = self.PROJECT_ROOT / 'outputs' / 'models'
         logs_dir = self.PROJECT_ROOT / 'outputs' / 'logs'
@@ -68,21 +68,26 @@ class UniversalModelTuner:
         logs_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Salva o modelo binário (.joblib ou .pkl)
-        model_filepath = models_dir / f"{self.scenario_name}_{self._model_config['model_name']}_best.joblib"
-        joblib.dump(self.best_model, model_filepath)
-        print(f"Modelo salvo em: {model_filepath}")
 
-        # 2. Salva as informações da otimização em JSON
-        info = {
-            "scenario_name": self.scenario_name,
-            "best_cv_score": float(self.study.best_value),
-            "best_params": self.study.best_params
-        }
-        
-        # Correção do caminho aqui (sem o self.PROJECT_ROOT repetido)
-        info_filepath = logs_dir / f"{self.scenario_name}_info.json"
-        with open(info_filepath, "w") as f:
-            json.dump(info, f, indent=4)
+        for model_name, model_data in self.fitted_models.items():
+            best_model = model_data['model']
+            study = model_data['study']
+
+            model_filepath = models_dir / f"{self.scenario_name}_{model_name}_best.joblib"
+            joblib.dump(best_model, model_filepath)
+
+            # 2. Salva as informações da otimização em JSON
+            info = {
+                "scenario_name": self.scenario_name,
+                "model_name": model_name,
+                "best_params": model_data['params']
+            }
+            
+            info_filepath = logs_dir / f"{self.scenario_name}_{model_name}_info.json"
+            with open(info_filepath, "w") as f:
+                json.dump(info, f, indent=4)
+
+            print('Informações dos modelos exportadas! \n')
             
         print(f"Configurações e métricas salvas em: {info_filepath}")
 
@@ -136,17 +141,27 @@ class UniversalModelTuner:
 
         self.fitted_models[self._model_config['model_name']] = {
             'study': study,
-            'model': best_model  
+            'model': best_model,  
+            'params': study.best_params
         }
 
         print()
 
+    def testar_coisas(self):
+        for model_name, model_data in self.fitted_models.items():
+            print(model_name)
+            print(model_data)
+
     def tune_and_fit_all_models(self):
         configs = self._load_config()
 
+        # Treinar todos os modelos
         for loaded_model in configs.values():
             self._model_config = loaded_model
             self.tune_and_fit(self.n_trials)
+
+        # Salvar os modelos
+        self._export_models()
 
         print('Fim, todos os modelos treinados.')
             
