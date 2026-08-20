@@ -1,60 +1,96 @@
 # ML Blueprint
 
-Um framework simples e extensível para otimização automática de modelos de machine learning com [Optuna](https://optuna.org/) e scikit-learn.
+O ML Blueprint disponibiliza uma classe reutilizável para otimizar e treinar modelos de machine learning com scikit-learn e [Optuna](https://optuna.org/).
 
-O projeto lê os espaços de busca definidos em YAML, executa validação cruzada para encontrar os melhores hiperparâmetros, treina cada modelo vencedor com os dados completos de treino e exporta os artefatos para reutilização.
+A classe [`UniversalModelTuner`](src/universal_model_tuner.py) pode ser usada em qualquer fluxo Python: um script, um notebook, uma aplicação ou outro módulo. O arquivo `main.py` é somente um exemplo de uso e não é obrigatório para utilizar o tuner.
 
-## Fluxo do projeto
+## O que a classe faz
+
+Ao chamar `tune_and_fit_all_models()`, o tuner:
+
+1. Lê os modelos e espaços de busca em `configs/search_spaces.yml`.
+2. Testa combinações de hiperparâmetros usando Optuna.
+3. Avalia cada combinação com validação cruzada.
+4. Treina novamente o melhor modelo usando todos os dados de treino.
+5. Guarda os modelos treinados e seus melhores parâmetros em `outputs/`.
 
 ```mermaid
 flowchart LR
-		A[Dados processados] --> B[search_spaces.yml]
-		B --> C[UniversalModelTuner]
-		C --> D[Optuna + validação cruzada]
-		D --> E[Modelo ajustado]
-		E --> F[outputs/models]
-		D --> G[outputs/logs]
+		A[X_train e y_train] --> B[UniversalModelTuner]
+		C[search_spaces.yml] --> B
+		B --> D[Optuna + validação cruzada]
+		D --> E[Modelos treinados]
+		E --> F[Uso no código ou notebook]
+		E --> G[Arquivos .joblib e .json]
 ```
 
-## Requisitos
+## Instalação
 
-- Python 3.9 ou superior
-- Dados de treino no formato CSV
-- Dependências Python:
+O projeto requer Python 3.9 ou superior. Instale as dependências do arquivo [`requirements.txt`](requirements.txt):
 
 ```powershell
-python -m pip install pandas pyyaml optuna scikit-learn joblib
+python -m pip install -r requirements.txt
 ```
 
-## Como executar
+## Uso em qualquer código Python
 
-1. Clone o repositório e acesse a pasta do projeto.
-2. Instale as dependências.
-3. Garanta que os arquivos abaixo existam em `data/processed/`:
+Você só precisa fornecer `X_train` e `y_train`. Eles podem ser DataFrames, Series, arrays NumPy ou qualquer formato aceito pelos estimadores do scikit-learn.
 
-```text
-X_train.csv
-y_train.csv
-X_test.csv
-y_test.csv
+```python
+from src.universal_model_tuner import UniversalModelTuner
+
+tuner = UniversalModelTuner(
+		X_train=X_train,
+		y_train=y_train,
+		scenario_name="meu_experimento",
+		n_trials=20,
+		scorer="accuracy",
+		cv=5,
+)
+
+tuner.tune_and_fit_all_models()
+
+# Acessa um modelo treinado pelo nome definido no YAML.
+modelo_knn = tuner.fitted_models["KNN"]["model"]
+predicoes = modelo_knn.predict(X_novos)
 ```
 
-4. Execute o treinamento:
+O dicionário `tuner.fitted_models` guarda, para cada modelo, o estimador ajustado, o estudo do Optuna e os melhores parâmetros:
 
-```powershell
-python main.py
+```python
+modelo = tuner.fitted_models["DecisionTree"]["model"]
+melhores_parametros = tuner.fitted_models["DecisionTree"]["params"]
+estudo = tuner.fitted_models["DecisionTree"]["study"]
 ```
 
-O script usa o cenário `testes`, realiza 10 tentativas por modelo e avalia os candidatos com `accuracy` e validação cruzada com 3 divisões.
+## Uso em um notebook
+
+O tuner não depende do `main.py`. Em uma célula do Jupyter, carregue os dados da forma que fizer sentido para o seu experimento e passe-os para a classe:
+
+```python
+import pandas as pd
+from src.universal_model_tuner import UniversalModelTuner
+
+X_train = pd.read_csv("data/processed/X_train.csv")
+y_train = pd.read_csv("data/processed/y_train.csv").squeeze()
+
+tuner = UniversalModelTuner(X_train, y_train, "experimento_notebook")
+tuner.tune_and_fit_all_models()
+
+modelo = tuner.fitted_models["KNN"]["model"]
+modelo.score(X_train, y_train)
+```
+
+O mesmo padrão pode ser usado em um pipeline, em um serviço ou em um script próprio. O ponto importante é importar `UniversalModelTuner`, criar uma instância e chamar o método de treinamento.
 
 ## Configuração dos modelos
 
-Os modelos são definidos em [`configs/search_spaces.yml`](configs/search_spaces.yml). Cada entrada precisa informar:
+Os modelos são configurados em [`configs/search_spaces.yml`](configs/search_spaces.yml). Cada cenário possui:
 
 | Campo | Descrição |
 | --- | --- |
-| `model_class` | Caminho completo da classe Python do estimador |
-| `model_name` | Nome usado nos arquivos exportados |
+| `model_class` | Caminho completo da classe do estimador |
+| `model_name` | Nome usado no dicionário de resultados e nos arquivos exportados |
 | `hyperparameters` | Hiperparâmetros que serão explorados pelo Optuna |
 
 Exemplo:
@@ -73,38 +109,55 @@ decision_tree_scenario:
 			choices: ["gini", "entropy"]
 ```
 
-Tipos de hiperparâmetros suportados:
+Tipos suportados:
 
-- `int`, com `low` e `high`
-- `float`, com `low`, `high` e opcionalmente `log: true`
-- `categorical`, com `choices`
+- `int`, com `low` e `high`.
+- `float`, com `low`, `high` e opcionalmente `log: true`.
+- `categorical`, com `choices`.
 
-## Artefatos gerados
+Para adicionar outro estimador, inclua um novo cenário no YAML e use o caminho completo da classe. O tuner importa a classe automaticamente.
 
-Depois da execução, os resultados ficam em:
+## Modelos e logs gerados
+
+Os arquivos são criados automaticamente depois do treinamento:
 
 ```text
 outputs/
 ├── models/
-│   ├── testes_KNN_best.joblib
-│   └── testes_DecisionTree_best.joblib
+│   ├── meu_experimento_KNN_best.joblib
+│   └── meu_experimento_DecisionTree_best.joblib
 └── logs/
-		├── testes_KNN_info.json
-		└── testes_DecisionTree_info.json
+		├── meu_experimento_KNN_info.json
+		└── meu_experimento_DecisionTree_info.json
 ```
 
-Os arquivos `.joblib` contêm os modelos treinados. Os arquivos `.json` registram o cenário, o nome do modelo e os melhores hiperparâmetros encontrados.
-
-Para carregar um modelo salvo:
+Os modelos podem ser carregados em qualquer outro script ou notebook:
 
 ```python
 import joblib
 
-modelo = joblib.load("outputs/models/testes_KNN_best.joblib")
+modelo = joblib.load("outputs/models/meu_experimento_KNN_best.joblib")
 predicoes = modelo.predict(X_novos)
 ```
 
-## Estrutura
+Os arquivos JSON registram o cenário, o nome do modelo e os melhores hiperparâmetros encontrados.
+
+## Parâmetros principais
+
+```python
+UniversalModelTuner(
+		X_train,          # Dados de entrada para treino e validação
+		y_train,          # Valores-alvo
+		scenario_name,    # Prefixo dos arquivos exportados
+		n_trials=10,      # Tentativas do Optuna por modelo
+		scorer="accuracy",# Métrica do scikit-learn
+		cv=3,              # Número de divisões da validação cruzada
+)
+```
+
+O `random_state` é definido como `14` automaticamente quando o estimador oferece esse parâmetro.
+
+## Estrutura do projeto
 
 ```text
 .
@@ -119,39 +172,13 @@ predicoes = modelo.predict(X_novos)
 │   └── predictions/
 ├── src/
 │   └── universal_model_tuner.py
-└── main.py
-```
-
-## Uso como biblioteca
-
-Também é possível usar o tuner diretamente no código:
-
-```python
-from src.universal_model_tuner import UniversalModelTuner
-
-tuner = UniversalModelTuner(
-		X_train=X_train,
-		y_train=y_train,
-		scenario_name="meu_cenario",
-		n_trials=20,
-		scorer="accuracy",
-		cv=5,
-)
-
-tuner.tune_and_fit_all_models()
-modelo_knn = tuner.fitted_models["KNN"]["model"]
+├── main.py                    # Exemplo opcional de execução
+└── requirements.txt
 ```
 
 ## Observações
 
-- Um `random_state` fixo (`14`) é aplicado automaticamente aos estimadores que oferecem esse parâmetro.
-- O modelo final de cada configuração é treinado usando todos os dados de `X_train` e `y_train`.
-- O exemplo em `main.py` usa os dados de treino; os arquivos de teste ainda não são usados para calcular métricas ou gerar predições.
-- Os diretórios de saída são criados automaticamente quando necessário.
-
-## Próximos passos
-
-- Adicionar as dependências ao `requirements.txt`.
-- Avaliar os melhores modelos no conjunto de teste.
-- Persistir métricas adicionais, como precisão, recall e F1-score.
-- Adicionar testes automatizados para o carregamento das configurações e exportação dos artefatos.
+- O arquivo de configuração é localizado a partir da raiz do projeto, independentemente do diretório a partir do qual o código é chamado.
+- O modelo final de cada configuração é treinado com todos os dados recebidos em `X_train` e `y_train`.
+- O tuner não calcula métricas no conjunto de teste automaticamente; essa avaliação pode ser feita depois usando o modelo armazenado em `fitted_models`.
+- O `main.py` usa os CSVs de `data/processed/` apenas como demonstração. Você pode substituí-lo por qualquer outra forma de carregar e preparar seus dados.
