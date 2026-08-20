@@ -146,7 +146,7 @@ modelo_knn = tuner.fitted_models["KNN"]["model"]
 
 - Um `random_state` fixo (`14`) é aplicado automaticamente aos estimadores que oferecem esse parâmetro.
 - O modelo final de cada configuração é treinado usando todos os dados de `X_train` e `y_train`.
-- Os arquivos de teste são carregados pelo `main.py`, mas ainda não são usados para calcular métricas ou gerar predições.
+- O exemplo em `main.py` usa os dados de treino; os arquivos de teste ainda não são usados para calcular métricas ou gerar predições.
 - Os diretórios de saída são criados automaticamente quando necessário.
 
 ## Próximos passos
