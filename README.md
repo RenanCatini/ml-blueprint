@@ -176,9 +176,14 @@ O `random_state` é definido como `14` automaticamente quando o estimador oferec
 └── requirements.txt
 ```
 
-## Observações
+## Status do projeto
 
-- O arquivo de configuração é localizado a partir da raiz do projeto, independentemente do diretório a partir do qual o código é chamado.
-- O modelo final de cada configuração é treinado com todos os dados recebidos em `X_train` e `y_train`.
-- O tuner não calcula métricas no conjunto de teste automaticamente; essa avaliação pode ser feita depois usando o modelo armazenado em `fitted_models`.
-- O `main.py` usa os CSVs de `data/processed/` apenas como demonstração. Você pode substituí-lo por qualquer outra forma de carregar e preparar seus dados.
+Este projeto ainda está em desenvolvimento. A estrutura principal da classe `UniversalModelTuner` já está disponível para otimização, treinamento e exportação de modelos, mas novos recursos e melhorias ainda estão sendo planejados.
+
+Entre os próximos aprimoramentos estão:
+
+- Avaliação automática dos modelos no conjunto de teste.
+- Geração e exportação de métricas adicionais, como precisão, recall e F1-score.
+- Suporte a mais tipos de hiperparâmetros e configurações de modelos.
+- Testes automatizados para validação do tuner e dos artefatos gerados.
+- Melhorias na documentação e nos exemplos de uso.
