@@ -1,4 +1,10 @@
 from src.universal_model_tuner import UniversalModelTuner
+import pandas as pd
 
-teste = UniversalModelTuner(1, 2, 3)
-teste._load_config()
+X_test = pd.read_csv('data/processed/X_test.csv')
+X_train = pd.read_csv('data/processed/X_train.csv')
+y_test = pd.read_csv('data/processed/y_test.csv').squeeze()
+y_train = pd.read_csv('data/processed/y_train.csv').squeeze()
+
+teste = UniversalModelTuner(X_train, y_train, 'testes')
+teste.tune_and_fit_all_models()

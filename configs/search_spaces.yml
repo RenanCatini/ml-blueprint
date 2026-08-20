@@ -1,45 +1,23 @@
 knn_scenario:
   model_class: "sklearn.neighbors.KNeighborsClassifier"
+  model_name: "KNN"
   hyperparameters:
     n_neighbors:
       type: "int"
-      low: 
-      high: 
+      low: 3
+      high: 15
     weights:
-      type: ""
-      choices: []
+      type: "categorical"
+      choices: ["uniform", "distance"]
 
 decision_tree_scenario:
   model_class: "sklearn.tree.DecisionTreeClassifier"
+  model_name: "DecisionTree"
   hyperparameters:
     max_depth:
-      type: ""
-      low: 
-      high: 
+      type: "int"
+      low: 2
+      high: 10
     criterion:
-      type: ""
-      choices: []
-
-random_forest_scenario:
-  model_class: "sklearn.ensemble.RandomForestClassifier"
-  hyperparameters:
-    n_estimators:
-      type: ""
-      low: 
-      high: 
-    max_depth:
-      type: ""
-      low: 
-      high: 
-
-svm_scenario:
-  model_class: "sklearn.svm.SVC"
-  hyperparameters:
-    C:
-      type: ""
-      low: 
-      high: 
-      log: 
-    kernel:
-      type: ""
-      choices: []
+      type: "categorical"
+      choices: ["gini", "entropy"]

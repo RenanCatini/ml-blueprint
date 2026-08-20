@@ -14,15 +14,15 @@ import inspect
 '''
 class UniversalModelTuner:
     # Contrutor global da classe
-    # Parâmetros: X_Treino, X_Teste, model_config
-    def __init__(self, X_train, y_train, model_config, scenario_name, n_trials, scorer='accuracy', cv=3):
+    # Parâmetros: X_Treino, X_Teste, _model_config
+    def __init__(self, X_train, y_train, scenario_name, n_trials=10, scorer='accuracy', cv=3):
         self.X_train      = X_train
-        self.y_train      = y_train
-        self.model_config = model_config 
+        self.y_train      = y_train 
         self.scenario_name = scenario_name
         self.n_trials     = n_trials
         self.scorer       = scorer
         self.cv           = cv
+        self.fitted_models = {}  # Bib para salvar os modelos que foram treinados
 
         # Caminho do arquivo atual ee cnontra a raiz
         self.CURRENT_FILE = Path(__file__).resolve()
@@ -43,7 +43,7 @@ class UniversalModelTuner:
         Importar modelo (Implementado pelo Gemini)
     '''
     def _build_model(self, params):
-        complete_path = self.model_config["model_class"]
+        complete_path = self._model_config["model_class"]
         module, class_name = complete_path.rsplit('.', 1)
         bib = importlib.import_module(module)
         ClasseClassificador = getattr(bib, class_name)
@@ -68,7 +68,7 @@ class UniversalModelTuner:
         logs_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Salva o modelo binário (.joblib ou .pkl)
-        model_filepath = models_dir / f"{self.scenario_name}_best.joblib"
+        model_filepath = models_dir / f"{self.scenario_name}_{self._model_config['model_name']}_best.joblib"
         joblib.dump(self.best_model, model_filepath)
         print(f"Modelo salvo em: {model_filepath}")
 
@@ -92,7 +92,7 @@ class UniversalModelTuner:
         params = {}
 
         # Montar o espaço de busca conforme o yaml
-        for param_name, rules in self.model_config['hyperparameters'].items():
+        for param_name, rules in self._model_config['hyperparameters'].items():
             # Tipo do Hiperparâmetro
             tipo = rules['type']
 
@@ -106,7 +106,7 @@ class UniversalModelTuner:
                 params[param_name] = trial.suggest_categorical(param_name, rules['choices'])
 
         # Definir o kernel caso seja SVM
-        if self.model_config['model_class'] == 'sklearn.svm.SVC':
+        if self._model_config['model_class'] == 'sklearn.svm.SVC':
             if params.get('kernel') == 'poly':
                 params['degree'] = trial.suggest_int('degree', 2, 4)
                 params['coef0'] = trial.suggest_float('coef0', 0.0, 1.0)
@@ -120,21 +120,33 @@ class UniversalModelTuner:
         return score
 
     def tune_and_fit(self, n_trials):
-        print(f'Iniciando otimização...')
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        print(f" -- Iniciando otimização do {self._model_config['model_name']} --")
         
         # Colocado o self. para exportar depois
-        self.study = optuna.create_study(direction='maximize')
-        self.study.optimize(self._objective, n_trials=n_trials)
+        study = optuna.create_study(direction='maximize')
+        study.optimize(self._objective, n_trials=n_trials)
 
-        print(f'Melhor pontuação (CV): {self.study.best_value:.4f}')
-        print(f'Melhores hiperparâmetros: {self.study.best_params}')
+        print(f'Melhor {self.scorer}: {study.best_value:.4f}')
+        print(f'Melhores hiperparâmetros: {study.best_params}')
 
         # Colocado o self. para exportar depois
-        self.best_model = self._build_model(self.study.best_params)
-        self.best_model.fit(self.X_train, self.y_train)
+        best_model = self._build_model(study.best_params)
+        best_model.fit(self.X_train, self.y_train)
 
-        self._export_results()
+        self.fitted_models[self._model_config['model_name']] = {
+            'study': study,
+            'model': best_model  
+        }
 
-        return self.best_model
+        print()
 
+    def tune_and_fit_all_models(self):
+        configs = self._load_config()
+
+        for loaded_model in configs.values():
+            self._model_config = loaded_model
+            self.tune_and_fit(self.n_trials)
+
+        print('Fim, todos os modelos treinados.')
             
