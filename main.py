@@ -8,3 +8,5 @@ y_train = pd.read_csv('data/processed/y_train.csv').squeeze()
 
 teste = UniversalModelTuner(X_train, y_train, 'testes')
 teste.tune_and_fit_all_models()
+
+knn_treinado = teste.fitted_models['KNN']['model']
